@@ -1,16 +1,10 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 const { parse: parseUrl } = require("url");
-const result = require("./tldList");
-const baseUrl = "https://www.techradar.com";
+const baseUrl = "https://mediagarh.com";
 const domain = new URL(baseUrl).hostname.split(".").slice(-2).join(".");
 const TLDs = require("./tldList");
 const ccLTD = require("./cctldList");
-// console.log(domain);
-
-// const internalLinks = [];
-// const externalLinks = [];
-// const brokenLinks = [];
 let internalLinks = [];
 let externalLinks = [];
 let brokenLinks = [];
@@ -40,32 +34,32 @@ const isValidDomain = (domain) => {
     const partLength = domainPart.length;
     switch (true) {
       case partLength == 2 &&
-        (TLDs.includes(domainPart[partLength - 1]) ||
-          ccLTD.includes(domainPart[partLength - 1])):
+        (TLDs?.includes(domainPart[partLength - 1]) ||
+          ccLTD?.includes(domainPart[partLength - 1])):
         validDomain = domainPart.join(".");
         break;
       case partLength == 3 &&
-        ccLTD.includes(domainPart[partLength - 1]) &&
-        TLDs.includes(domainPart[partLength - 2]):
+        ccLTD?.includes(domainPart[partLength - 1]) &&
+        TLDs?.includes(domainPart[partLength - 2]):
         validDomain = domainPart.join(".");
         break;
-      case partLength == 3 && TLDs.includes(domainPart[partLength - 1]):
+      case partLength == 3 && TLDs?.includes(domainPart[partLength - 1]):
         validDomain = domainPart.slice(1).join(".");
         break;
-      case partLength == 3 && ccLTD.includes(domainPart[partLength - 1]):
+      case partLength == 3 && ccLTD?.includes(domainPart[partLength - 1]):
         validDomain = domainPart.slice(1).join(".");
         break;
       case partLength > 3 &&
-        ccLTD.includes(domainPart[partLength - 1]) &&
-        TLDs.includes(domainPart[partLength - 2]):
+        ccLTD?.includes(domainPart[partLength - 1]) &&
+        TLDs?.includes(domainPart[partLength - 2]):
         const startIndex = Math.max(0, partLength - 3);
         validDomain = domainPart.slice(startIndex).join(".");
         break;
-      case partLength > 3 && ccLTD.includes(domainPart[partLength - 1]):
+      case partLength > 3 && ccLTD?.includes(domainPart[partLength - 1]):
         const startIndex1 = Math.max(0, partLength - 2);
         validDomain = domainPart.slice(startIndex1).join(".");
         break;
-      case partLength > 3 && TLDs.includes(domainPart[partLength - 1]):
+      case partLength > 3 && TLDs?.includes(domainPart[partLength - 1]):
         const startIndex2 = Math.max(0, partLength - 2);
         validDomain = domainPart.slice(startIndex2).join(".");
         break;
@@ -85,25 +79,39 @@ const checkLinkStatus = async (url) => {
     return error.response ? error.response.data : 0;
   }
 };
-const checkAvailability = async (url) => {};
-
+// (async () => {
+//   const response = await axios.get("https://mediagarh.com");
+// })();
+let counter = 1;
+let tempPagesCount = 1;
 async function crawlWebsite(currentUrl, baseUrl, pages) {
-  console.log(pages, "pages<,,,,,,,,,,,,,,,,,,,,,,,,,,>");
   let tempPages = [];
   try {
     const response = await axios.get(currentUrl);
+    const contentType = response.headers["content-type"];
+
+    // console.log(response.headers["content-type"], "response");
+
+    if (!contentType.includes("text/html")) {
+      console.log("____________________________________________________");
+      return pages;
+    }
     const $ = cheerio.load(response.data);
 
     $("a").each(async (index, element) => {
       const href = $(element).attr("href");
 
-      if (href) {
-        const standardHref = convertToStandardURL(href);
+      if (
+        href &&
+        !href.includes("webp") &&
+        !href.includes("jpg") &&
+        !href.includes("jpeg")
+      ) {
         const parsedUrl = parseUrl(href);
         if (href.startsWith("/")) {
           try {
             const pageUrl = convertToStandardURL(`${baseUrl}${href}`);
-            if (!pages.includes(standardHref)) {
+            if (!pages?.includes(pageUrl)) {
               pages.push(pageUrl);
               tempPages.push(pageUrl);
             }
@@ -111,57 +119,72 @@ async function crawlWebsite(currentUrl, baseUrl, pages) {
             console.log("Error-startswith:", error.message);
           }
         } else if (href.includes(domain)) {
-          if (!pages.includes(standardHref)) {
+          const standardHref = convertToStandardURL(href);
+          // console.log(standardHref, "standardHreffffffffffff");
+          // console.log(pages, "pagessss");
+          if (!pages?.includes(standardHref) && baseUrl !== standardHref) {
             tempPages.push(standardHref);
             pages.push(standardHref);
           }
-        } else if (parsedUrl?.hostname) {
-          const validUrl = isValidDomain(parsedUrl?.hostname);
-          if (validUrl !== "Invalid") {
-            const validStandardUrl = convertToStandardURL(validUrl);
-
-            if (!externalLinks.includes(validStandardUrl)) {
-              externalLinks.push(validStandardUrl);
-              const data = await checkLinkStatus(validStandardUrl);
-              if (data !== 200) {
-                brokenLinks.push(validStandardUrl);
-              }
-            }
-          }
         }
+        // else {
+        // if (parsedUrl?.hostname) {
+        //   const validUrl = isValidDomain(parsedUrl.hostname);
+        //   if (validUrl !== "Invalid" && validUrl !== "") {
+        //     const validStandardUrl = convertToStandardURL(validUrl);
+
+        //     if (!externalLinks.includes(validStandardUrl)) {
+        //       externalLinks.push(validStandardUrl);
+        //       const data = await checkLinkStatus(validStandardUrl);
+        //       if (data !== 200) {
+        //         brokenLinks.push(validStandardUrl);
+        //       }
+        //     }
+        //   }
+        // }
+        // }
         // Check if the link is broken
       }
     });
+    internalLinks = internalLinks.filter((element) => element !== currentUrl);
     if (tempPages?.length > 0) {
+      tempPagesCount = tempPagesCount + tempPages.length;
+      // tempPagesCount += tempPages.length;
+      console.log(tempPagesCount, "temppage");
+
       for (const page of tempPages) {
-        if (!internalLinks.includes(page)) {
+        if (!internalLinks?.includes(page)) {
           internalLinks.push(page);
+          console.log(counter++, "count");
+          // console.log(page, "page><");
+          pages = await crawlWebsite(page, baseUrl, pages);
         }
       }
-    }
-    internalLinks = internalLinks.filter((element) => element !== currentUrl);
-    console.log(internalLinks, "internal");
-    console.log(internalLinks.length, "length");
-    if (!pages.includes(currentUrl)) {
-      console.log(internalLinks.length, "length");
-      for (const link of internalLinks) {
-        console.log(link, "<<<<<<<<<<<<<<<<<<");
-        // console.log(pages, "pages");
-        onetime = false;
-        pages = await crawlWebsite(link, baseUrl, pages);
-        // console.log(pagee, "pagee-------------------------->");
-
-        // return pages;
-      }
     } else {
-      console.log("elselselselleselle");
+      console.log("__________________________");
       return pages;
-      process.exit(1);
     }
+    // console.log(internalLinks, "internal");
+    console.log(internalLinks.length, "length");
+
+    // if (!pages?.includes(currentUrl)) {
+    //   console.log("not available");
+    //   console.log(internalLinks, "length");
+    //   for (const link of internalLinks) {
+    //     console.log(counter++, "count");
+    //     console.log(link, "<<<<<<<<<<<<<<<<<<");
+    //     // console.log(pages, "pages");
+    //     pages = await crawlWebsite(link, baseUrl, pages);
+    //   }
+    // } else {
+    //   console.log("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
+    //   return pages;
+    // }
     return pages;
   } catch (error) {
-    console.error("Error:", error.message);
+    console.error("Error: crawlWebsite", error.message);
   }
+  return pages;
 }
 
 // checkLinkStatus("https://www.dosndf.com").then((r) => console.log(r));
@@ -171,16 +194,3 @@ crawlWebsite(baseUrl, baseUrl, []).then((result) => {
   console.log(result, ">>>>>>>>>>>>>>");
   // console.log(externalLinks, "externallink");
 });
-// isValidDomain("");
-
-// let array = [1, 2, 3, 4, 5, 9, 10, 6, 7, 8];
-// let ab = [9, 10, 56];
-// for (const a of ab) {
-//   if (!array.includes(a)) {
-//     array.push(a);
-//   } else {
-//     console.log(!array.includes(a), ".", a);
-//     array = array.filter((element) => element !== a);
-//   }
-// }
-// console.log(array);

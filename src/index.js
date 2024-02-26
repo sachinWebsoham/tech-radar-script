@@ -91,7 +91,9 @@ const externalLinkExtractor = async (currentUrl, domain) => {
               if (domain.startsWith("www.")) {
                 domain = domain.replace(/^www\./, "");
               }
+              // console.log(domain, "domain.......................");
               const validUrl = await validDomain(domain);
+              // console.log(validUrl, "validUrl,,,,,,,,,,,,,,,,,,,,,,,");
               if (!urls.includes(validUrl)) {
                 urls.push(validUrl);
                 await supabase.from("external_link").insert({ url: validUrl });
@@ -121,51 +123,68 @@ const externalLinkExtractor = async (currentUrl, domain) => {
     console.log("Error-external:", error.message);
   }
 };
+function getNotIncludedUrls(crawlPages, databasePages) {
+  try {
+    return crawlPages
+      .filter((url) => !databasePages.includes(url))
+      .map((url) => ({ page_url: url }));
+  } catch (error) {
+    return `Error-checkUrl:${error.message}`;
+  }
+}
 
 const crawlPages = async (baseUrl, domain) => {
   try {
+    const { data } = await supabase.from("domain_page").select();
+    const pageUrls = data.map((entry) => entry.page_url);
     const locUrls = await locUrlExtractor(baseUrl, domain);
+    const checkedPages = getNotIncludedUrls(locUrls, pageUrls);
+    // console.log(checkedPages, ">>>>>>>");
+    // console.log(checkedPages.length, "length");
+    // console.log(dataToInsert.length);
+    await supabase
+      .from("domain_page")
+      .upsert(checkedPages, { onConflict: ["id"] });
+    // let i = 1;
+    // if (!checkedPages || checkedPages.length > 0) {
+    //   for (const locUrl of checkedPages) {
+    //     if (locUrl) {
+    //       const { data } = await supabase
+    //         .from("domain_page")
+    //         .select()
+    //         .eq("page_url", locUrl);
+    //       if (data?.length == 0) {
+    //         await supabase.from("domain_page").insert({ page_url: locUrl });
 
-    let i = 1;
-    if (!locUrls || locUrls.length > 0) {
-      for (const locUrl of locUrls) {
-        if (locUrl) {
-          const { data } = await supabase
-            .from("domain_page")
-            .select()
-            .eq("page_url", locUrl);
-          if (data?.length == 0) {
-            await supabase.from("domain_page").insert({ page_url: locUrl });
-
-            // console.log(data);
-            console.log(i++);
-            await externalLinkExtractor(locUrl, domain)
-              .then(async (result) => {
-                // console.log(
-                //   result,
-                //   ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-                // );
-                if (result?.length > 0) {
-                  const results = await filteration(result);
-                  if (results?.length > 0) {
-                    const domain_available = results.filter(
-                      (item) => item.purchasable == true
-                    );
-                    for (const data of domain_available) {
-                      await supabase
-                        .from("domains")
-                        .insert({ domain_available: data });
-                    }
-                  }
-                }
-              })
-              .catch((e) => {
-                console.log("e", e.message);
-              });
-          }
-        }
-      }
-    }
+    //         // console.log(data);
+    //         console.log(i++);
+    //         await externalLinkExtractor(locUrl, domain)
+    //           .then(async (result) => {
+    //             // console.log(
+    //             //   result,
+    //             //   ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+    //             // );
+    //             if (result?.length > 0) {
+    //               const results = await filteration(result);
+    //               if (results?.length > 0) {
+    //                 const domain_available = results.filter(
+    //                   (item) => item.purchasable == true
+    //                 );
+    //                 for (const data of domain_available) {
+    //                   await supabase
+    //                     .from("domains")
+    //                     .insert({ domain_available: data });
+    //                 }
+    //               }
+    //             }
+    //           })
+    //           .catch((e) => {
+    //             console.log("e", e.message);
+    //           });
+    //       }
+    //     }
+    //   }
+    // }
   } catch (error) {
     console.log("Error-crawlpage:", error.message);
   }
